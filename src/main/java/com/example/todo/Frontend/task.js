@@ -1,26 +1,32 @@
+let domContentLoadedHandled = false;
+
 document.addEventListener('DOMContentLoaded', async function() {
-    try {
-        const response =  await fetch('http://localhost:8080/task/allTask', {
-            method: 'GET',
-        });
-
-        if (!response.ok) {
-            new Error(`Network response was not ok: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-
-        data.forEach(dataset => {
-            if (dataset.parent === 0) {
-                create_task(dataset, null);
-            } else {
-                create_task(dataset, dataset.parent);
-            }
-        });
-
-    } catch (error) {
-        console.error('There was a problem with the fetch operation:', error);
+    if (domContentLoadedHandled) {
+        return;
     }
+    domContentLoadedHandled = true;
+
+    fetch('http://localhost:8080/task/allTask', {
+            method: 'GET',
+        })
+        .then (response => {
+            if (!response.ok) {
+               throw new Error(`Network response was not ok: ${response.statusText}`);
+            }
+            return response.json();
+        })
+        .then (data => {
+            data.forEach(dataset => {
+                if (dataset.parent === 0) {
+                    create_task(dataset, null);
+                } else {
+                    create_task(dataset, dataset.parent);
+                }
+            });
+        })
+        .catch (error => {
+            console.error('There was a problem with the fetch operation:', error);
+        })
 });
 
 document.getElementById('task_input').addEventListener('keydown', async function (event) {
@@ -167,6 +173,7 @@ function update_status(id, status) {
 
 function link_parent(text, end_symbol){
     let parent_task = text.substring(1, end_symbol);
+    console.log(parent_task)
     return fetch('http://localhost:8080/task/parent_id?parent_task='+ parent_task, {
         method: 'GET'
     })
