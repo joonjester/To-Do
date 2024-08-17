@@ -58,7 +58,7 @@ li #button_layout {
     filter: brightness(1.2);
 }
 
-li #button_layout::before {
+#button_layout::before {
     content: none;
 }
 
@@ -96,7 +96,6 @@ i:hover {
     width: 100%;
     max-width: 300px;
     outline-width: 0;
-
 }
 
 .task_text {
