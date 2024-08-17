@@ -1,71 +1,126 @@
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        const response =  await fetch('http://localhost:8080/task/allTask', {
+            method: 'GET',
+        });
 
-document.getElementById('submit_task').onclick = async function () {
-    let input_value = document.getElementById('task_input').value;
-    let parent_id = null;
+        if (!response.ok) {
+            new Error(`Network response was not ok: ${response.statusText}`);
+        }
 
-    if (check_for_parent(input_value)) {
-        let end_symbol = input_value.search("<");
-        parent_id = await link_parent(input_value, end_symbol);
-        input_value = task_for_parent(input_value, end_symbol);
+        const data = await response.json();
+
+        data.forEach(dataset => {
+            if (dataset.parent === 0) {
+                create_task(dataset, null);
+            } else {
+                create_task(dataset, dataset.parent);
+            }
+        });
+
+    } catch (error) {
+        console.error('There was a problem with the fetch operation:', error);
+    }
+});
+
+document.getElementById('task_input').addEventListener('keydown', async function (event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        let input_value = document.getElementById('task_input').value;
+        let parent_id = null;
+
+        if (check_for_parent(input_value)) {
+            const end_symbol = input_value.search("<");
+            parent_id = await link_parent(input_value, end_symbol);
+            input_value = task_for_parent(input_value, end_symbol);
+        }
+
+        fetch('http://localhost:8080/task/create', {
+            method: "POST",
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                status: false,
+                parent: parent_id,
+                task: input_value
+            })
+        })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                create_task(data, parent_id)
+            })
+            .catch(error => {
+                console.log('There was a problem with the fetch operation:', error);
+            });
+    }
+})
+
+function create_task(data, parent_id) {
+    const li = document.createElement('li');
+    let task_text = document.createElement('div')
+    const button_layout = document.createElement('div')
+    const del_icon = document.createElement('i');
+    const edit_icon = document.createElement('i');
+    const ul = document.createElement('ul');
+
+    //ID for Sub-List of a Task
+    ul.id = 'sub_task_id'+data.id;
+
+    //Create List Element
+    task_text.innerText = data.task;
+    task_text.className = 'task_text';
+    task_text.class = 'task';
+    task_text.onclick = function () {
+        toggle_task(data.id);
+        this.classList.toggle('task')
+    };
+
+    //Create Button for Edit
+    edit_icon.className = 'fa-regular fa-pen-to-square';
+    edit_icon.onclick = function () {
+        task_text.contentEditable = 'true';
+        task_text.focus();
+
+        task_text.addEventListener('keydown', async function (event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                let edit_input_value = task_text.innerText;
+                edit_task(data.id, edit_input_value);
+                task_text.contentEditable = 'false';
+            }
+        })
     }
 
-    fetch('http://localhost:8080/task/create', {
-        method: "POST",
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            status: false,
-            parent: parent_id,
-            task: input_value
-        })
-    })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then(data => {
-            let li = document.createElement('li');
-            let button = document.createElement('button');
-            let edit_button = document.createElement('button');
+    //Create Button for Delete
+    del_icon.className = 'fa-regular fa-trash-can'
+    del_icon.onclick = function () {
+        delete_task(data.id);
+        li.remove();
+    }
 
-            //Create List Element
-            li.innerText = data.task;
-            li.class = 'task';
-            li.onclick = function() {
-                toggleTask(data.id);
-            };
-            //Potentionally redundant
-            li.addEventListener('click', function() {
-                this.classList.toggle('task')
-            });
+    // Adding the element to the task
+    button_layout.id = 'button_layout';
+    button_layout.appendChild(edit_icon);
+    button_layout.appendChild(del_icon);
+    li.appendChild(task_text);
+    li.appendChild(button_layout);
 
-            //Create Button for Delete
-            button.innerText = 'del';
-            button.onclick = function() {
-                delete_task(data.id);
-                li.remove();
-            }
-
-            //Create Button for Edit
-            edit_button.innerText = 'edit';
-            edit_button.onclick = function() {
-                edit_task(data.id, input_value, parent_id);
-            }
-
-            li.appendChild(button);
-            li.appendChild(edit_button);
-            document.getElementById('tasks_list').appendChild(li);
-        })
-        .catch(error => {
-            console.log('There was a problem with the fetch operation:', error);
-        });
+    // Deciding which UL it goes to
+    if (parent_id !== null) {
+        document.getElementById('sub_task_id'+ parent_id).appendChild(li);
+    } else {
+        document.getElementById('tasks_list').appendChild(li);
+        document.getElementById('tasks_list').appendChild(ul);
+    }
 }
 
-
-function toggleTask(id) {
+function toggle_task(id) {
     fetch('http://localhost:8080/task/curr_status?id='+id, {
         method: 'GET',
     })
@@ -110,19 +165,6 @@ function update_status(id, status) {
         })
 }
 
-function play_audio() {
-    const audio = new Audio('pencil_fast_line.mp3');
-    audio.play()
-}
-
-function check_for_parent(text){
-    let first_char = Array.from(text)[0];
-    return first_char === ">";
-}
-function task_for_parent(text, end_symbol) {
-    return text.substring(end_symbol + 2);
-}
-
 function link_parent(text, end_symbol){
     let parent_task = text.substring(1, end_symbol);
     return fetch('http://localhost:8080/task/parent_id?parent_task='+ parent_task, {
@@ -144,15 +186,15 @@ function link_parent(text, end_symbol){
 
 function edit_task(id, task, parent) {
     fetch("http://localhost:8080/task/update", {
-        methode: 'PUT',
+        method: 'PUT',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: {
+        body: JSON.stringify({
             id: id,
             task: task,
             parent: parent
-        }
+        })
     })
         .then(response => {
             if (!response.ok) {
@@ -166,14 +208,14 @@ function edit_task(id, task, parent) {
 }
 
 function delete_task(id) {
-    fetch("http://localhost:8080/task/update", {
-        methode: 'DEL',
+    fetch("http://localhost:8080/task/delete", {
+        method: 'DELETE',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: {
+        body: JSON.stringify({
             id: id
-        }
+        })
     })
         .then(response => {
             if (!response.ok) {
@@ -186,3 +228,24 @@ function delete_task(id) {
         })
 }
 
+function play_audio() {
+    const audio = new Audio('pencil_fast_line.mp3');
+    audio.play()
+        .then(() => {
+            // Audio playback started successfully
+            console.log("Audio playback started successfully.");
+        })
+        .catch(error => {
+            // Audio playback failed
+            console.error("Error occurred during audio playback:", error);
+        });
+}
+
+function check_for_parent(text){
+    let first_char = Array.from(text)[0];
+    return first_char === ">";
+}
+
+function task_for_parent(text, end_symbol) {
+    return text.substring(end_symbol + 2);
+}
